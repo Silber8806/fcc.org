@@ -8,6 +8,9 @@
 var fs = require('fs');
 var express = require('express');
 var app = express();
+var mongo = require('mongodb').MongoClient;
+var database_url = 'mongodb://' + process.env.db_user + ':' + process.env.db_password + '@ds141534.mlab.com:41534/nicohunters'
+var validUrl = require('valid-url');
 
 if (!process.env.DISABLE_XORIGIN) {
   app.use(function(req, res, next) {
@@ -32,6 +35,8 @@ app.route('/_api/package.json')
       res.type('txt').send(data.toString());
     });
   });
+
+// this is the get date project...
 
 app.route('/getdate/:date')
   .get(function(req,res,next){
@@ -59,8 +64,80 @@ app.route('/getdate/:date')
     natural=null
   }
   var doc_send={unixtime,natural};
-  res.type('txt').send(doc_send);
+  res.setHeader('Content-Type', 'application/json');
+  res.send(doc_send);
 })
+
+// this is the headers section...
+
+app.route('/computerinfo')
+  .get(function(req,res){
+    var ip_address=req.headers['x-forwarded-for'];
+    var user_agent=req.headers['user-agent'];
+    var lang=req.headers['accept-language'];
+   var doc_send={ip_address,user_agent,lang}
+   res.setHeader('Content-Type', 'application/json');
+   res.send(doc_send);
+})
+
+// this is the url shortening project.
+
+app.route('/new_url/:old_url(*)')
+  .get(function(req,res){
+    var original_url = req.params.old_url;
+    var new_url = 'https://glacier-group.glitch.me/new_urls/' 
+    if (validUrl.isUri(original_url)){   
+      mongo.connect(database_url,function(err,db){
+      if(err){
+        res.sendStatus(500);
+      }
+      var website = db.collection('websites');
+      var website_counters = db.collection('websites_counter');
+      website_counters.update(
+            { _id: 'websites' },
+            { $inc: { seq: 1 }}
+       );
+      website_counters.find({_id: 'websites'}).toArray(function(err, docs) {
+          var new_seq = docs[0].seq;
+          var doc = {
+            web_number: new_seq,
+            redirect_url:original_url
+          }
+          website.insert(doc, function(err, data) {
+              if (err) throw err
+              db.close();
+              new_url = new_url + new_seq;
+              res.send({original_url,new_url}); 
+          })
+          });
+        }) 
+    } 
+    else {
+      res.sendStatus(500);
+    }
+  }
+)
+
+app.route('/new_urls/:url_number')
+  .get(function(req,res){
+    var url_number = req.params.url_number;
+    mongo.connect(database_url,function(err,db){
+      if(err){
+        res.sendStatus(500);
+      }
+      var website = db.collection('websites');
+      var results = website.find({web_number:parseInt(url_number)});
+      results.toArray(function(err, docs) {
+        if (err) {
+          res.sendStatus(500);
+        }
+          console.log(docs)
+          db.close()
+          res.redirect(docs[0].redirect_url);
+        })
+    })
+  }
+)
   
 app.route('/')
     .get(function(req, res) {
