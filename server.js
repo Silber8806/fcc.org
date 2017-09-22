@@ -11,6 +11,9 @@ var app = express();
 var mongo = require('mongodb').MongoClient;
 var database_url = 'mongodb://' + process.env.db_user + ':' + process.env.db_password + '@ds141534.mlab.com:41534/nicohunters'
 var validUrl = require('valid-url');
+var request = require('request');
+var multer  = require('multer');
+var upload = multer({ dest: 'uploads/' })
 
 if (!process.env.DISABLE_XORIGIN) {
   app.use(function(req, res, next) {
@@ -131,14 +134,98 @@ app.route('/new_urls/:url_number')
         if (err) {
           res.sendStatus(500);
         }
-          console.log(docs)
           db.close()
           res.redirect(docs[0].redirect_url);
         })
     })
   }
 )
+
+// Image abstraction API.  Please note, I did not implement cacheing on url.
+
+app.route('/getimage/:imageterm')
+  .get(function(req,res){
+      console.log(req.url)
+      if (/\?offset/.test(req.url)){
+        var url = req.url;
+        console.log(url)
+        var option = url.split('?')[1].split('=')[1]
+        console.log(option)
+      } else {
+        var option = 0;
+      }
+      console.log(option);
+      var image_term = req.params.imageterm; 
+      var search_req= process.env.pxby_url + '&q=' + image_term + '&image_type=photo'
+       mongo.connect(database_url,function(err,db){
+            if(err){
+              res.sendStatus(500);
+            }
+            var search_terms = db.collection('search_terms');
+            var term = image_term;
+            var when = new Date().toISOString();
+          
+           var doc = {
+             term,
+             when
+           }
+           search_terms.insert(doc, function(err, data) {
+              if (err) throw err
+             db.close();
+       })
+        request.get(search_req,function (error, response, body){
+        if(error) {
+          res.sendStatus(500);
+        }
+        if(res.statusCode !== 200 ){
+          res.sendStatus(500);
+      } else {
+        var json_response = JSON.parse(body,function(k,v){
+          if (k === "tags") 
+              this.alt_txt = v;
+          else
+              return v;    
+        })['hits'];
+        if (option !== 0){
+          json_response = json_response.splice(0,parseInt(option));
+        }
+        res.send(json_response);
+      }
+    })
+  })
+})
+
+app.route('/getsearches/')
+  .get(function(req,res){
+   mongo.connect(database_url,function(err,db){
+            if(err){
+              res.sendStatus(500);
+            }
+            var search_terms = db.collection('search_terms');
+            search_terms.find().sort({when:-1}).limit(20).toArray(function(err, docs) {
+              if(err){
+                res.sendStatus(500);
+              }
+              db.close();
+              res.send(docs);
+            });       
+  })
+})
+
+// File Metadata Microservice
+
+app.route('/file_size')
+  .get(function(req,res){
+  res.sendFile(process.cwd() + '/views/getfile.html');
+})
+
+app.post('/file_size', upload.single('file_size'), function (req, res, next) {
+  var size = req.file['size'];
+  res.send({size});
+})
   
+// Main route...
+
 app.route('/')
     .get(function(req, res) {
 		  res.sendFile(process.cwd() + '/views/index.html');

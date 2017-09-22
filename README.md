@@ -1,13 +1,6 @@
-#Project
+# Includes the 5 projects from FreeCodeCamp.org:
 
-This is a project for freecodecamp.org.  I decided against what was mentioned not to have a single repo for each project as
-I work in github on a daily basis and don't want to manage many code basis.
+See index.html page under views or visit main route for more information.
 
-#Currently the following projects are being done here:
-
-Timestamp Microservice Complete
-Request Header Parser Microservice Complete 
-URL Shortener Microservice Complete  
-Image Search Abstraction Layer Incomplete
-
-7 more projects after this.  All of it is hosted in server.js currently.
+Note: quick project, under 3-4 hours just to get a feel for the language and framework.  I didn't implement 
+cacheing for Pixabay, so if you search the same terms in same hour...you'll get an error (cell phones beware).
